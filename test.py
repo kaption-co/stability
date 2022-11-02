@@ -2,9 +2,14 @@
 # Run it with `python3 test.py``
 
 import requests
+import os
 
-model_inputs = {'prompt': 'Hello I am a [MASK] model.'}
+
+
+model_inputs = {'prompt': 'what do you think is [MASK]?'}
 
 res = requests.post('http://localhost:8000/', json = model_inputs)
 
 print(res.json())
+
+import train
