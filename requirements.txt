@@ -12,4 +12,7 @@ torchvision
 black
 boto3
 poetry
-pytest
+pytest # unit testing
+wget # curl (already installed?)
+nvsmi # get GPU info
+huggingface_hub

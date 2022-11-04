@@ -40,7 +40,6 @@ urls = [
     "https://huggingface.co/datasets/valhalla/images/resolve/main/3.jpeg",
     "https://huggingface.co/datasets/valhalla/images/resolve/main/5.jpeg",
     "https://huggingface.co/datasets/valhalla/images/resolve/main/6.jpeg",
-    "https://i.imgur.com/VxmMal5.jpeg"
     ]
 
 images = list(filter(None,[download_image(url) for url in urls]))
@@ -179,9 +178,12 @@ if(prior_preservation):
     cur_class_images = len(list(class_images_dir.iterdir()))
 
     if cur_class_images < num_class_images:
+
+
         pipeline = StableDiffusionPipeline.from_pretrained(
             pretrained_model_name_or_path, revision="fp16", torch_dtype=torch.float16
         ).to("cuda")
+
         pipeline.enable_attention_slicing()
         pipeline.set_progress_bar_config(disable=True)
 
