@@ -9,3 +9,7 @@ bitsandbytes
 ipywidgets
 GitPython
 torchvision
+black
+boto3
+poetry
+pytest
