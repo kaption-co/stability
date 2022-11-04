@@ -1,4 +1,4 @@
-#@title Import required libraries
+# @title Import required libraries
 import argparse
 import itertools
 import math
@@ -16,7 +16,13 @@ import PIL
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed
-from diffusers import AutoencoderKL, DDPMScheduler, PNDMScheduler, StableDiffusionPipeline, UNet2DConditionModel
+from diffusers import (
+    AutoencoderKL,
+    DDPMScheduler,
+    PNDMScheduler,
+    StableDiffusionPipeline,
+    UNet2DConditionModel,
+)
 from diffusers.hub_utils import init_git_repo, push_to_hub
 from diffusers.optimization import get_scheduler
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
@@ -30,7 +36,8 @@ from train_utils import image_grid, download_image
 import math
 import gc
 
-print('start')
+
+print("start")
 
 token = "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"
 pretrained_model_name_or_path = f"runwayml/stable-diffusion-v1-5"
@@ -40,22 +47,22 @@ urls = [
     "https://huggingface.co/datasets/valhalla/images/resolve/main/3.jpeg",
     "https://huggingface.co/datasets/valhalla/images/resolve/main/5.jpeg",
     "https://huggingface.co/datasets/valhalla/images/resolve/main/6.jpeg",
-    ]
+]
 
-images = list(filter(None,[download_image(url) for url in urls]))
+images = list(filter(None, [download_image(url) for url in urls]))
 
 save_path = "./my_concept"
 preview_path = "./my_preview"
 
 if not os.path.exists(save_path):
-  os.mkdir(save_path)
+    os.mkdir(save_path)
 
 [image.save(f"{save_path}/{i}.jpeg") for i, image in enumerate(images)]
 
 r = image_grid(images, 1, len(images))
 
 if not os.path.exists(preview_path):
-  os.mkdir(preview_path)
+    os.mkdir(preview_path)
 
 r.save(f"{preview_path}/preview.jpeg")
 
@@ -70,11 +77,12 @@ num_class_images = 12
 sample_batch_size = 2
 prior_loss_weight = 0.5
 prior_preservation_class_folder = "./class_images"
-class_data_root=prior_preservation_class_folder
-class_prompt=prior_preservation_class_prompt
+class_data_root = prior_preservation_class_folder
+class_prompt = prior_preservation_class_prompt
 
 
-print('dreambooth')
+print("dreambooth")
+
 
 class DreamBoothDataset(Dataset):
     def __init__(
@@ -112,8 +120,12 @@ class DreamBoothDataset(Dataset):
 
         self.image_transforms = transforms.Compose(
             [
-                transforms.Resize(size, interpolation=transforms.InterpolationMode.BILINEAR),
-                transforms.CenterCrop(size) if center_crop else transforms.RandomCrop(size),
+                transforms.Resize(
+                    size, interpolation=transforms.InterpolationMode.BILINEAR
+                ),
+                transforms.CenterCrop(size)
+                if center_crop
+                else transforms.RandomCrop(size),
                 transforms.ToTensor(),
                 transforms.Normalize([0.5], [0.5]),
             ]
@@ -124,7 +136,9 @@ class DreamBoothDataset(Dataset):
 
     def __getitem__(self, index):
         example = {}
-        instance_image = Image.open(self.instance_images_path[index % self.num_instance_images])
+        instance_image = Image.open(
+            self.instance_images_path[index % self.num_instance_images]
+        )
         if not instance_image.mode == "RGB":
             instance_image = instance_image.convert("RGB")
         example["instance_images"] = self.image_transforms(instance_image)
@@ -136,7 +150,9 @@ class DreamBoothDataset(Dataset):
         ).input_ids
 
         if self.class_data_root:
-            class_image = Image.open(self.class_images_path[index % self.num_class_images])
+            class_image = Image.open(
+                self.class_images_path[index % self.num_class_images]
+            )
             if not class_image.mode == "RGB":
                 class_image = class_image.convert("RGB")
             example["class_images"] = self.image_transforms(class_image)
@@ -150,7 +166,9 @@ class DreamBoothDataset(Dataset):
         return example
 
 
-print('PromptDataset')
+print("PromptDataset")
+
+
 class PromptDataset(Dataset):
     def __init__(self, prompt, num_samples):
         self.prompt = prompt
@@ -166,19 +184,15 @@ class PromptDataset(Dataset):
         return example
 
 
+print("prior_preservation")
 
-
-
-print('prior_preservation')
-
-if(prior_preservation):
+if prior_preservation:
     class_images_dir = Path(class_data_root)
     if not class_images_dir.exists():
         class_images_dir.mkdir(parents=True)
     cur_class_images = len(list(class_images_dir.iterdir()))
 
     if cur_class_images < num_class_images:
-
 
         pipeline = StableDiffusionPipeline.from_pretrained(
             pretrained_model_name_or_path, revision="fp16", torch_dtype=torch.float16
@@ -191,45 +205,42 @@ if(prior_preservation):
         print(f"Number of class images to sample: {num_new_images}.")
 
         sample_dataset = PromptDataset(class_prompt, num_new_images)
-        sample_dataloader = torch.utils.data.DataLoader(sample_dataset, batch_size=sample_batch_size)
+        sample_dataloader = torch.utils.data.DataLoader(
+            sample_dataset, batch_size=sample_batch_size
+        )
 
         for example in tqdm(sample_dataloader, desc="Generating class images"):
             images = pipeline(example["prompt"]).images
 
             for i, image in enumerate(images):
-                image.save(class_images_dir / f"{example['index'][i] + cur_class_images}.jpg")
+                image.save(
+                    class_images_dir / f"{example['index'][i] + cur_class_images}.jpg"
+                )
         pipeline = None
         gc.collect()
         del pipeline
         with torch.no_grad():
-          torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
-print('get the stable diffusion model')
+print("get the stable diffusion model")
 
 # get the stable diffusion model
 text_encoder = CLIPTextModel.from_pretrained(
-    pretrained_model_name_or_path,
-    subfolder="text_encoder",
-    use_auth_token=token
+    pretrained_model_name_or_path, subfolder="text_encoder", use_auth_token=token
 )
 vae = AutoencoderKL.from_pretrained(
-    pretrained_model_name_or_path,
-    subfolder="vae",
-    use_auth_token=token
+    pretrained_model_name_or_path, subfolder="vae", use_auth_token=token
 )
 unet = UNet2DConditionModel.from_pretrained(
-    pretrained_model_name_or_path,
-    subfolder="unet",
-    use_auth_token=token
+    pretrained_model_name_or_path, subfolder="unet", use_auth_token=token
 )
 tokenizer = CLIPTokenizer.from_pretrained(
-    pretrained_model_name_or_path,
-    subfolder="tokenizer",
-    use_auth_token=token
+    pretrained_model_name_or_path, subfolder="tokenizer", use_auth_token=token
 )
-print('args')
+print("args")
 
 from argparse import Namespace
+
 args = Namespace(
     pretrained_model_name_or_path=pretrained_model_name_or_path,
     resolution=512,
@@ -241,9 +252,9 @@ args = Namespace(
     train_batch_size=1,
     gradient_accumulation_steps=2,
     max_grad_norm=1.0,
-    mixed_precision="no", # set to "fp16" for mixed-precision training.
-    gradient_checkpointing=True, # set this to True to lower the memory usage.
-    use_8bit_adam=True, # use 8bit optimizer from bitsandbytes
+    mixed_precision="no",  # set to "fp16" for mixed-precision training.
+    gradient_checkpointing=True,  # set this to True to lower the memory usage.
+    use_8bit_adam=True,  # use 8bit optimizer from bitsandbytes
     seed=3434554,
     with_prior_preservation=prior_preservation,
     prior_loss_weight=prior_loss_weight,
@@ -255,9 +266,11 @@ args = Namespace(
 )
 
 
-print('training function')
+print("training function")
 
 from accelerate.utils import set_seed
+
+
 def training_function(text_encoder, vae, unet):
     logger = get_logger(__name__)
 
@@ -283,7 +296,10 @@ def training_function(text_encoder, vae, unet):
     )
 
     noise_scheduler = DDPMScheduler(
-        beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000
+        beta_start=0.00085,
+        beta_end=0.012,
+        beta_schedule="scaled_linear",
+        num_train_timesteps=1000,
     )
 
     train_dataset = DreamBoothDataset(
@@ -308,7 +324,9 @@ def training_function(text_encoder, vae, unet):
         pixel_values = torch.stack(pixel_values)
         pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
 
-        input_ids = tokenizer.pad({"input_ids": input_ids}, padding=True, return_tensors="pt").input_ids
+        input_ids = tokenizer.pad(
+            {"input_ids": input_ids}, padding=True, return_tensors="pt"
+        ).input_ids
 
         batch = {
             "input_ids": input_ids,
@@ -317,30 +335,45 @@ def training_function(text_encoder, vae, unet):
         return batch
 
     train_dataloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.train_batch_size, shuffle=True, collate_fn=collate_fn
+        train_dataset,
+        batch_size=args.train_batch_size,
+        shuffle=True,
+        collate_fn=collate_fn,
     )
 
-    unet, optimizer, train_dataloader = accelerator.prepare(unet, optimizer, train_dataloader)
+    unet, optimizer, train_dataloader = accelerator.prepare(
+        unet, optimizer, train_dataloader
+    )
 
     # Move text_encode and vae to gpu
     text_encoder.to(accelerator.device)
     vae.to(accelerator.device)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+    num_update_steps_per_epoch = math.ceil(
+        len(train_dataloader) / args.gradient_accumulation_steps
+    )
     num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
     # Train!
-    total_batch_size = args.train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+    total_batch_size = (
+        args.train_batch_size
+        * accelerator.num_processes
+        * args.gradient_accumulation_steps
+    )
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+    logger.info(
+        f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}"
+    )
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    progress_bar = tqdm(
+        range(args.max_train_steps), disable=not accelerator.is_local_main_process
+    )
     progress_bar.set_description("Steps")
     global_step = 0
 
@@ -358,7 +391,10 @@ def training_function(text_encoder, vae, unet):
                 bsz = latents.shape[0]
                 # Sample a random timestep for each image
                 timesteps = torch.randint(
-                    0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device
+                    0,
+                    noise_scheduler.config.num_train_timesteps,
+                    (bsz,),
+                    device=latents.device,
                 ).long()
 
                 # Add noise to the latents according to the noise magnitude at each timestep
@@ -370,7 +406,9 @@ def training_function(text_encoder, vae, unet):
                     encoder_hidden_states = text_encoder(batch["input_ids"])[0]
 
                 # Predict the noise residual
-                noise_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                noise_pred = unet(
+                    noisy_latents, timesteps, encoder_hidden_states
+                ).sample
 
                 if args.with_prior_preservation:
                     # Chunk the noise and noise_pred into two parts and compute the loss on each part separately.
@@ -378,15 +416,27 @@ def training_function(text_encoder, vae, unet):
                     noise, noise_prior = torch.chunk(noise, 2, dim=0)
 
                     # Compute instance loss
-                    loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
+                    loss = (
+                        F.mse_loss(noise_pred, noise, reduction="none")
+                        .mean([1, 2, 3])
+                        .mean()
+                    )
 
                     # Compute prior loss
-                    prior_loss = F.mse_loss(noise_pred_prior, noise_prior, reduction="none").mean([1, 2, 3]).mean()
+                    prior_loss = (
+                        F.mse_loss(noise_pred_prior, noise_prior, reduction="none")
+                        .mean([1, 2, 3])
+                        .mean()
+                    )
 
                     # Add the prior loss to the instance loss.
                     loss = loss + args.prior_loss_weight * prior_loss
                 else:
-                    loss = F.mse_loss(noise_pred, noise, reduction="none").mean([1, 2, 3]).mean()
+                    loss = (
+                        F.mse_loss(noise_pred, noise, reduction="none")
+                        .mean([1, 2, 3])
+                        .mean()
+                    )
 
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
@@ -415,16 +465,25 @@ def training_function(text_encoder, vae, unet):
             unet=accelerator.unwrap_model(unet),
             tokenizer=tokenizer,
             scheduler=PNDMScheduler(
-                beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", skip_prk_steps=True
+                beta_start=0.00085,
+                beta_end=0.012,
+                beta_schedule="scaled_linear",
+                skip_prk_steps=True,
             ),
-            safety_checker=StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker"),
-            feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-base-patch32"),
+            safety_checker=StableDiffusionSafetyChecker.from_pretrained(
+                "CompVis/stable-diffusion-safety-checker"
+            ),
+            feature_extractor=CLIPFeatureExtractor.from_pretrained(
+                "openai/clip-vit-base-patch32"
+            ),
         )
         pipeline.save_pretrained(args.output_dir)
 
-print('run training')
+
+print("run training")
 
 import accelerate
+
 accelerate.notebook_launcher(training_function, args=(text_encoder, vae, unet))
 with torch.no_grad():
     torch.cuda.empty_cache()
