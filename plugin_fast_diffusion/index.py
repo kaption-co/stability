@@ -11,22 +11,32 @@ class FictionFastDiffusion(Plugin):
 
     def __init__(
         self,
+        user_id: str,
+        training_id: str,
         instance_prompt_medium: str = "photo",
         instance_prompt_subject: str = "person",
-        subject_description: str = "young",
+        instance_prompt_description: str = "young",
     ):
         super().__init__()
+
+        self.user_id = user_id
+        self.training_id = training_id
         self.instance_prompt = (
             f"a {instance_prompt_medium} of a sxkx {instance_prompt_subject}"
         )
 
-        self.class_prompt = f"a {instance_prompt_medium} of a {subject_description} sxkx {instance_prompt_subject}"
+        self.class_prompt = f"a {instance_prompt_medium} of a {instance_prompt_description} sxkx {instance_prompt_subject}"
 
     def train(self, training_image_urls: List[str] = list()):
 
         images: List = list(
             filter(None, [download_image(url) for url in training_image_urls])
         )
+
+        save_path = f"/data/trainings/{self.training_id}"
+
+        [image.save(f"{save_path}/{i}.jpeg") for i, image in enumerate(images)]
+
         train_dreambooth(
             pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5",
             hub_token=self.hub_token,
@@ -37,10 +47,3 @@ class FictionFastDiffusion(Plugin):
 
     def infer(self):
         pass
-
-
-handler = FictionFastDiffusion(
-    instance_prompt_medium="photo",
-    instance_prompt_subject="man",
-    subject_description="rich",
-)

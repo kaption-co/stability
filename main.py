@@ -15,8 +15,18 @@ training_image_urls = list(
 
 images: List = list(filter(None, [download_image(url) for url in training_image_urls]))
 
-instance_prompt = "a photo of a sxkx person"
+instance_prompt_medium = "photo"
+instance_prompt_subject = "man"
+instance_prompt_description = "rich"
+user_id = "user1234"
+training_id = "train1234"
 
-handler = FictionFastDiffusion(instance_prompt)
+handler = FictionFastDiffusion(
+    instance_prompt_medium=instance_prompt_medium,
+    instance_prompt_subject=instance_prompt_subject,
+    instance_prompt_description=instance_prompt_description,
+    user_id=user_id,
+    training_id=training_id
+)
 
 handler.train(training_image_urls)
