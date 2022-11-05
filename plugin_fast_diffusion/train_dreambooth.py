@@ -34,56 +34,8 @@ logger = get_logger(__name__)
 from typing import TypedDict, Literal
 
 
-# class TrainArguments(TypedDict):
-#     pretrained_model_name_or_path: str
-#     revision: str
-#     resolution: int
-#     center_crop: bool
-#     instance_data_dir: str
-#     instance_prompt: str
-#     learning_rate: float
-#     max_train_steps: int
-#     num_train_epochs: int
-#     train_batch_size: int
-#     gradient_accumulation_steps: int
-#     max_grad_norm: float
-#     mixed_precision: Literal(["no", "fp16", "bf16"])
-#     gradient_checkpointing: bool
-#     use_8bit_adam: bool
-#     seed: int
-#     with_prior_preservation: bool
-#     prior_loss_weight: float
-#     sample_batch_size: int
-#     class_data_dir: str
-#     class_prompt: str
-#     num_class_images: int
-#     output_dir: str
-#     logging_dir: str
-#     train_text_encoder: bool
-#     tokenizer_name: str
-#     scale_lr: bool
-#     push_to_hub: bool
-#     hub_token: str
-#     hub_model_id: str
-#     enable_gradient_checkpointing: bool
-#     adam_beta1: float
-#     adam_beta2: float
-#     adam_weight_decay: float
-#     adam_epsilon: float
-#     lr_warmup_steps: int
-#     lr_scheduler: Literal[
-#         "linear",
-#         "cosine",
-#         "cosine_with_restarts",
-#         "polynomial",
-#         "constant",
-#         "constant_with_warmup",
-#     ]
-
-
 def train_dreambooth(
     pretrained_model_name_or_path: str,
-    class_data_dir: str,
     instance_prompt: str,
     hub_token: str,
     sample_batch_size: int = 4,
@@ -93,7 +45,9 @@ def train_dreambooth(
     revision: str = None,
     resolution: int = 512,
     center_crop: bool = True,
+    class_data_dir: str = "data/class_data",
     instance_data_dir: str = "data/instance_images",
+    output_dir: str = "data/output",
     learning_rate: float = 5e-6,
     max_train_steps: int = None,
     num_train_epochs: int = 1,
@@ -106,12 +60,13 @@ def train_dreambooth(
     lr_warmup_steps: int = 500,
     seed: int = None,
     num_class_images: int = 100,
-    output_dir: str = "data/output",
     with_prior_preservation: bool = False,
     gradient_accumulation_steps: int = 2,
     train_text_encoder: bool = True,
     prior_loss_weight: float = 1.0,
-    mixed_precision: Literal["no", "fp16", "bf16"] = "fp16",
+    mixed_precision: Literal["no", "fp16", "bf16"] = "fp16"
+    if torch.cuda.is_available()
+    else "no",
     lr_scheduler_type: Literal[
         "linear",
         "cosine",
@@ -160,6 +115,7 @@ def train_dreambooth(
                 torch_dtype=torch_dtype,
                 safety_checker=None,
                 revision=revision,
+                use_auth_token=hub_token,
             )
             pipeline.set_progress_bar_config(disable=True)
 
@@ -290,7 +246,10 @@ def train_dreambooth(
     )
 
     noise_scheduler = DDPMScheduler.from_config(
-        "CompVis/stable-diffusion-v1-4", subfolder="scheduler"
+        beta_start=0.00085,
+        beta_end=0.012,
+        beta_schedule="scaled_linear",
+        num_train_timesteps=1000,
     )
 
     train_dataset = DreamBoothDataset(
