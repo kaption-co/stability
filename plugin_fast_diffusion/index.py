@@ -33,9 +33,10 @@ class FictionFastDiffusion(Plugin):
             filter(None, [download_image(url) for url in training_image_urls])
         )
 
-        save_path = f"/data/trainings/{self.training_id}"
+        save_path = f"/data/train/{self.training_id}"
+        instance_data_dir = f"{save_path}/training_data"
 
-        [image.save(f"{save_path}/{i}.jpeg") for i, image in enumerate(images)]
+        [image.save(f"{instance_data_dir}/{i}.jpeg") for i, image in enumerate(images)]
 
         train_dreambooth(
             pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5",
@@ -43,6 +44,9 @@ class FictionFastDiffusion(Plugin):
             instance_prompt=self.instance_prompt,
             class_prompt=self.class_prompt,
             with_prior_preservation=False,
+            output_dir=f"{save_path}/output",
+            instance_data_dir=instance_data_dir,
+            class_data_dir=f"{save_path}/class_data",
         )
 
     def infer(self):
