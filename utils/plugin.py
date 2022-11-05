@@ -1,4 +1,4 @@
 class Plugin:
-    def __init__(self, parent):
+    def __init__(self):
         # silence
         pass

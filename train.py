@@ -36,6 +36,7 @@ from train_utils import image_grid, download_image
 import math
 import gc
 
+from typing import List
 
 print("start")
 
@@ -49,7 +50,7 @@ urls = [
     "https://huggingface.co/datasets/valhalla/images/resolve/main/6.jpeg",
 ]
 
-images = list(filter(None, [download_image(url) for url in urls]))
+images: List = list(filter(None, [download_image(url) for url in urls]))
 
 save_path = "./my_concept"
 preview_path = "./my_preview"

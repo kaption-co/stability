@@ -36,29 +36,30 @@ from train_utils import image_grid, download_image
 import math
 import gc
 from utils.plugin import Plugin
-from train_dreambooth import train_dreambooth
+from train_dreambooth import train_dreambooth, TrainArguments
+
+from typing import TypedDict, Literal
 
 
 class FictionFastDiffusion(Plugin):
     hub_token = "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"
     name = "Fast Diffusion 1.5"
-    resolution = (512,)
-    center_crop = (True,)
-    learning_rate = (5e-06,)
-    max_train_steps = (450,)
-    train_batch_size = (1,)
-    gradient_accumulation_steps = (2,)
-    max_grad_norm = (1.0,)
-    mixed_precision = ("no",)  # set to "fp16" for mixed-precision training.
-    gradient_checkpointing = (True,)  # set this to True to lower the memory usage.
-    use_8bit_adam = (True,)  # use 8bit optimizer from bitsandbytes
-    seed = (3434554,)
-    sample_batch_size = (2,)
+    resolution = 512
+    center_crop = True
+    learning_rate = 5e-06
+    max_train_steps = 450
+    train_batch_size = 1
+    gradient_accumulation_steps = 2
+    max_grad_norm = 1.0
+    mixed_precision = "no"  # set to "fp16" for mixed-precision training.
+    gradient_checkpointing = True  # set this to True to lower the memory usage.
+    use_8bit_adam = True  # use 8bit optimizer from bitsandbytes
+    seed = 3434554
+    sample_batch_size = 2
     output_dir = "./rendered_concepts"
     base_model = f"runwayml/stable-diffusion-v1-5"
 
     instance_data_dir = "./training_images"
-    instance_prompt = (instance_prompt,)
 
     with_prior_preservation = False
     prior_loss_weight = 0.5
@@ -81,7 +82,14 @@ class FictionFastDiffusion(Plugin):
         self.class_prompt = f"a {instance_prompt_medium} of a {subject_description} sxkx {instance_prompt_subject}"
 
     def train(self):
-        train(test=1)
+
+        args = TrainArguments()
+        args["output_dir"] = self.output_dir
+        args["hub_token"] = self.hub_token
+        args["pretrained_model_name_or_path"] = self.base_model
+        args["gradient_checkpointing"] = self.gradient_checkpointing
+        args["use_8bit_adam"] = self.use_8bit_adam
+        train_dreambooth(dict(abc=1))
 
     def infer(self):
         pass

@@ -1,5 +1,5 @@
-sanic==22.6.2
-diffusers==0.6.0
+sanic
+diffusers
 transformers
 accelerate
 tensorboard
@@ -18,3 +18,5 @@ wget # curl (already installed?)
 nvsmi # get GPU info
 huggingface_hub
 deepspeed
+torch
+mypy

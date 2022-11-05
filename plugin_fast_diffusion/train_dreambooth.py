@@ -34,67 +34,107 @@ logger = get_logger(__name__)
 from typing import TypedDict, Literal
 
 
-class TrainArguments(TypedDict):
-    pretrained_model_name_or_path: str
-    revision: str
-    resolution: int
-    center_crop: bool
-    instance_data_dir: str
-    instance_prompt: str
-    learning_rate: float
-    max_train_steps: int
-    num_train_epochs: int
-    train_batch_size: int
-    gradient_accumulation_steps: int
-    max_grad_norm: float
-    mixed_precision: bool
-    gradient_checkpointing: bool
-    use_8bit_adam: bool
-    seed: int
-    with_prior_preservation: bool
-    prior_loss_weight: float
-    sample_batch_size: int
-    class_data_dir: str
-    class_prompt: str
-    num_class_images: int
-    output_dir: str
-    logging_dir: str
-    train_text_encoder: bool
-    tokenizer_name: str
-    scale_lr: bool
-    push_to_hub: bool
-    hub_token: str
-    enable_gradient_checkpointing: bool
-    adam_beta1: float
-    adam_weight_decay: float
-    adam_epsilon: float
-    lr_warmup_steps: int
-    lr_scheduler: Literal[
+# class TrainArguments(TypedDict):
+#     pretrained_model_name_or_path: str
+#     revision: str
+#     resolution: int
+#     center_crop: bool
+#     instance_data_dir: str
+#     instance_prompt: str
+#     learning_rate: float
+#     max_train_steps: int
+#     num_train_epochs: int
+#     train_batch_size: int
+#     gradient_accumulation_steps: int
+#     max_grad_norm: float
+#     mixed_precision: Literal(["no", "fp16", "bf16"])
+#     gradient_checkpointing: bool
+#     use_8bit_adam: bool
+#     seed: int
+#     with_prior_preservation: bool
+#     prior_loss_weight: float
+#     sample_batch_size: int
+#     class_data_dir: str
+#     class_prompt: str
+#     num_class_images: int
+#     output_dir: str
+#     logging_dir: str
+#     train_text_encoder: bool
+#     tokenizer_name: str
+#     scale_lr: bool
+#     push_to_hub: bool
+#     hub_token: str
+#     hub_model_id: str
+#     enable_gradient_checkpointing: bool
+#     adam_beta1: float
+#     adam_beta2: float
+#     adam_weight_decay: float
+#     adam_epsilon: float
+#     lr_warmup_steps: int
+#     lr_scheduler: Literal[
+#         "linear",
+#         "cosine",
+#         "cosine_with_restarts",
+#         "polynomial",
+#         "constant",
+#         "constant_with_warmup",
+#     ]
+
+
+def train_dreambooth(
+    pretrained_model_name_or_path: str,
+    class_data_dir: str,
+    instance_prompt: str,
+    hub_token: str,
+    sample_batch_size: int = 4,
+    class_prompt: str = None,
+    tokenizer_name: str = None,
+    scale_lr: bool = False,
+    revision: str = None,
+    resolution: int = 512,
+    center_crop: bool = True,
+    instance_data_dir: str = "data/instance_images",
+    learning_rate: float = 5e-6,
+    max_train_steps: int = None,
+    num_train_epochs: int = 1,
+    train_batch_size: int = 4,
+    max_grad_norm: float = 1.0,
+    gradient_checkpointing: bool = True,
+    use_8bit_adam: bool = True,
+    push_to_hub: bool = False,
+    hub_model_id: str = None,
+    lr_warmup_steps: int = 500,
+    seed: int = None,
+    num_class_images: int = 100,
+    output_dir: str = "data/output",
+    with_prior_preservation: bool = False,
+    gradient_accumulation_steps: int = 2,
+    train_text_encoder: bool = True,
+    prior_loss_weight: float = 1.0,
+    mixed_precision: Literal["no", "fp16", "bf16"] = "fp16",
+    lr_scheduler_type: Literal[
         "linear",
         "cosine",
         "cosine_with_restarts",
         "polynomial",
         "constant",
         "constant_with_warmup",
-    ]
-
-
-def train_dreambooth(args: TrainArguments):
-    logging_dir = Path(args.output_dir, args.logging_dir)
+    ] = "constant",
+):
 
     accelerator = Accelerator(
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mixed_precision=args.mixed_precision,
+        gradient_accumulation_steps=gradient_accumulation_steps,
+        mixed_precision=mixed_precision,
         log_with="tensorboard",
-        logging_dir=logging_dir,
+        logging_dir=Path(output_dir, "logs"),
     )
 
     # Currently, it's not possible to do gradient accumulation when training two models with accelerate.accumulate
     # This will be enabled soon in accelerate. For now, we don't allow gradient accumulation when training two models.
     # TODO (patil-suraj): Remove this check when gradient accumulation with two models is enabled in accelerate.
     if (
-        args.train_text_encoder
-        and args.gradient_accumulation_steps > 1
+        train_text_encoder
+        and gradient_accumulation_steps
         and accelerator.num_processes > 1
     ):
         raise ValueError(
@@ -102,33 +142,33 @@ def train_dreambooth(args: TrainArguments):
             "Please set gradient_accumulation_steps to 1. This feature will be supported in the future."
         )
 
-    if args.seed is not None:
-        set_seed(args.seed)
+    if seed is not None:
+        set_seed(seed)
 
-    if args.with_prior_preservation:
-        class_images_dir = Path(args.class_data_dir)
+    if with_prior_preservation:
+        class_images_dir = Path(class_data_dir)
         if not class_images_dir.exists():
             class_images_dir.mkdir(parents=True)
         cur_class_images = len(list(class_images_dir.iterdir()))
 
-        if cur_class_images < args.num_class_images:
+        if cur_class_images < num_class_images:
             torch_dtype = (
                 torch.float16 if accelerator.device.type == "cuda" else torch.float32
             )
             pipeline = StableDiffusionPipeline.from_pretrained(
-                args.pretrained_model_name_or_path,
+                pretrained_model_name_or_path,
                 torch_dtype=torch_dtype,
                 safety_checker=None,
-                revision=args.revision,
+                revision=revision,
             )
             pipeline.set_progress_bar_config(disable=True)
 
-            num_new_images = args.num_class_images - cur_class_images
+            num_new_images = num_class_images - cur_class_images
             logger.info(f"Number of class images to sample: {num_new_images}.")
 
-            sample_dataset = PromptDataset(args.class_prompt, num_new_images)
+            sample_dataset = PromptDataset(class_prompt, num_new_images)
             sample_dataloader = torch.utils.data.DataLoader(
-                sample_dataset, batch_size=args.sample_batch_size
+                sample_dataset, batch_size=sample_batch_size
             )
 
             sample_dataloader = accelerator.prepare(sample_dataloader)
@@ -155,75 +195,75 @@ def train_dreambooth(args: TrainArguments):
 
     # Handle the repository creation
     if accelerator.is_main_process:
-        if args.push_to_hub:
-            if args.hub_model_id is None:
-                repo_name = get_full_repo_name(
-                    Path(args.output_dir).name, token=args.hub_token
-                )
+        if push_to_hub:
+            if hub_model_id is None:
+                repo_name = get_full_repo_name(Path(output_dir).name, token=hub_token)
             else:
-                repo_name = args.hub_model_id
-            repo = Repository(args.output_dir, clone_from=repo_name)
+                repo_name = hub_model_id
+            repo = Repository(output_dir, clone_from=repo_name)
 
-            with open(os.path.join(args.output_dir, ".gitignore"), "w+") as gitignore:
+            with open(os.path.join(output_dir, ".gitignore"), "w+") as gitignore:
                 if "step_*" not in gitignore:
                     gitignore.write("step_*\n")
                 if "epoch_*" not in gitignore:
                     gitignore.write("epoch_*\n")
-        elif args.output_dir is not None:
-            os.makedirs(args.output_dir, exist_ok=True)
+        elif output_dir is not None:
+            os.makedirs(output_dir, exist_ok=True)
 
     # Load the tokenizer
-    if args.tokenizer_name:
+    if tokenizer_name:
         tokenizer = CLIPTokenizer.from_pretrained(
-            args.tokenizer_name, revision=args.revision, use_auth_token=args.hub_token
+            tokenizer_name,
+            revision=revision,
+            use_auth_token=hub_token,
         )
-    elif args.pretrained_model_name_or_path:
+    elif pretrained_model_name_or_path:
         tokenizer = CLIPTokenizer.from_pretrained(
-            args.pretrained_model_name_or_path,
+            pretrained_model_name_or_path,
             subfolder="tokenizer",
-            revision=args.revision,
-            use_auth_token=args.hub_token,
+            revision=revision,
+            use_auth_token=hub_token,
         )
 
     # Load models and create wrapper for stable diffusion
     text_encoder = CLIPTextModel.from_pretrained(
-        args.pretrained_model_name_or_path,
+        pretrained_model_name_or_path,
         subfolder="text_encoder",
-        revision=args.revision,
-        use_auth_token=args.hub_token,
+        revision=revision,
+        use_auth_token=hub_token,
     )
     vae = AutoencoderKL.from_pretrained(
-        args.pretrained_model_name_or_path,
+        pretrained_model_name_or_path,
         subfolder="vae",
-        revision=args.revision,
-        use_auth_token=args.hub_token,
+        revision=revision,
+        use_auth_token=hub_token,
     )
     unet = UNet2DConditionModel.from_pretrained(
-        args.pretrained_model_name_or_path,
+        pretrained_model_name_or_path,
         subfolder="unet",
-        revision=args.revision,
-        use_auth_token=args.hub_token,
+        revision=revision,
+        use_auth_token=hub_token,
     )
 
     vae.requires_grad_(False)
-    if not args.train_text_encoder:
+    if not train_text_encoder:
         text_encoder.requires_grad_(False)
 
-    if args.gradient_checkpointing:
+    if gradient_checkpointing:
         unet.enable_gradient_checkpointing()
-        if args.train_text_encoder:
+        if train_text_encoder:
             text_encoder.gradient_checkpointing_enable()
 
-    if args.scale_lr:
-        args.learning_rate = (
-            args.learning_rate
-            * args.gradient_accumulation_steps
-            * args.train_batch_size
+    if scale_lr:
+        learning_rate = (
+            learning_rate
+            * gradient_accumulation_steps
+            * train_batch_size
             * accelerator.num_processes
         )
 
     # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
-    if args.use_8bit_adam:
+    if use_8bit_adam:
         try:
             import bitsandbytes as bnb
         except ImportError:
@@ -237,15 +277,16 @@ def train_dreambooth(args: TrainArguments):
 
     params_to_optimize = (
         itertools.chain(unet.parameters(), text_encoder.parameters())
-        if args.train_text_encoder
+        if train_text_encoder
         else unet.parameters()
     )
     optimizer = optimizer_class(
         params_to_optimize,
-        lr=args.learning_rate,
-        betas=(args.adam_beta1, args.adam_beta2),
-        weight_decay=args.adam_weight_decay,
-        eps=args.adam_epsilon,
+        # Remove this as reference script doesnt use em
+        # lr=learning_rate,
+        # betas=(args["adam_beta1"], args["adam_beta2"]),
+        # weight_decay=args["adam_weight_decay"],
+        # eps=args["adam_epsilon"],
     )
 
     noise_scheduler = DDPMScheduler.from_config(
@@ -253,13 +294,13 @@ def train_dreambooth(args: TrainArguments):
     )
 
     train_dataset = DreamBoothDataset(
-        instance_data_root=args.instance_data_dir,
-        instance_prompt=args.instance_prompt,
-        class_data_root=args.class_data_dir if args.with_prior_preservation else None,
-        class_prompt=args.class_prompt,
+        instance_data_root=instance_data_dir,
+        instance_prompt=instance_prompt,
+        class_data_root=class_data_dir if with_prior_preservation else None,
+        class_prompt=class_prompt,
         tokenizer=tokenizer,
-        size=args.resolution,
-        center_crop=args.center_crop,
+        size=resolution,
+        center_crop=center_crop,
     )
 
     def collate_fn(examples):
@@ -268,7 +309,7 @@ def train_dreambooth(args: TrainArguments):
 
         # Concat class and instance examples for prior preservation.
         # We do this to avoid doing two forward passes.
-        if args.with_prior_preservation:
+        if with_prior_preservation:
             input_ids += [example["class_prompt_ids"] for example in examples]
             pixel_values += [example["class_images"] for example in examples]
 
@@ -290,7 +331,7 @@ def train_dreambooth(args: TrainArguments):
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=args.train_batch_size,
+        batch_size=train_batch_size,
         shuffle=True,
         collate_fn=collate_fn,
         num_workers=1,
@@ -298,21 +339,24 @@ def train_dreambooth(args: TrainArguments):
 
     # Scheduler and math around the number of training steps.
     overrode_max_train_steps = False
+    gradient_accumulation_steps = gradient_accumulation_steps
+    max_train_steps = max_train_steps
+    lr_warmup_steps = lr_warmup_steps
     num_update_steps_per_epoch = math.ceil(
-        len(train_dataloader) / args.gradient_accumulation_steps
+        len(train_dataloader) / gradient_accumulation_steps
     )
-    if args.max_train_steps is None:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+    if max_train_steps is None:
+        max_train_steps = num_train_epochs * num_update_steps_per_epoch
         overrode_max_train_steps = True
 
     lr_scheduler = get_scheduler(
-        args.lr_scheduler,
+        lr_scheduler_type,
         optimizer=optimizer,
-        num_warmup_steps=args.lr_warmup_steps * args.gradient_accumulation_steps,
-        num_training_steps=args.max_train_steps * args.gradient_accumulation_steps,
+        num_warmup_steps=lr_warmup_steps * gradient_accumulation_steps,
+        num_training_steps=max_train_steps * gradient_accumulation_steps,
     )
 
-    if args.train_text_encoder:
+    if train_text_encoder:
         (
             unet,
             text_encoder,
@@ -328,59 +372,57 @@ def train_dreambooth(args: TrainArguments):
         )
 
     weight_dtype = torch.float32
-    if args.mixed_precision == "fp16":
+    if mixed_precision == "fp16":
         weight_dtype = torch.float16
-    elif args.mixed_precision == "bf16":
+    elif mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
 
     # Move text_encode and vae to gpu.
     # For mixed precision training we cast the text_encoder and vae weights to half-precision
     # as these models are only used for inference, keeping weights in full precision is not required.
     vae.to(accelerator.device, dtype=weight_dtype)
-    if not args.train_text_encoder:
+    if not train_text_encoder:
         text_encoder.to(accelerator.device, dtype=weight_dtype)
 
     # We need to recalculate our total training steps as the size of the training dataloader may have changed.
     num_update_steps_per_epoch = math.ceil(
-        len(train_dataloader) / args.gradient_accumulation_steps
+        len(train_dataloader) / gradient_accumulation_steps
     )
     if overrode_max_train_steps:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+        max_train_steps = num_train_epochs * num_update_steps_per_epoch
     # Afterwards we recalculate our number of training epochs
-    args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+    num_train_epochs = math.ceil(max_train_steps / num_update_steps_per_epoch)
 
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
-        accelerator.init_trackers("dreambooth", config=vars(args))
+        accelerator.init_trackers("dreambooth", config=vars())
 
     # Train!
     total_batch_size = (
-        args.train_batch_size
-        * accelerator.num_processes
-        * args.gradient_accumulation_steps
+        train_batch_size * accelerator.num_processes * gradient_accumulation_steps
     )
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
     logger.info(f"  Num batches each epoch = {len(train_dataloader)}")
-    logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.train_batch_size}")
+    logger.info(f"  Num Epochs = {num_train_epochs}")
+    logger.info(f"  Instantaneous batch size per device = {train_batch_size}")
     logger.info(
         f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}"
     )
-    logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    logger.info(f"  Total optimization steps = {args.max_train_steps}")
+    logger.info(f"  Gradient Accumulation steps = {gradient_accumulation_steps}")
+    logger.info(f"  Total optimization steps = {max_train_steps}")
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(
-        range(args.max_train_steps), disable=not accelerator.is_local_main_process
+        range(max_train_steps), disable=not accelerator.is_local_main_process
     )
     progress_bar.set_description("Steps")
     global_step = 0
 
-    for epoch in range(args.num_train_epochs):
+    for epoch in range(num_train_epochs):
         unet.train()
-        if args.train_text_encoder:
+        if train_text_encoder:
             text_encoder.train()
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(unet):
@@ -414,7 +456,7 @@ def train_dreambooth(args: TrainArguments):
                     noisy_latents, timesteps, encoder_hidden_states
                 ).sample
 
-                if args.with_prior_preservation:
+                if with_prior_preservation:
                     # Chunk the noise and noise_pred into two parts and compute the loss on each part separately.
                     noise_pred, noise_pred_prior = torch.chunk(noise_pred, 2, dim=0)
                     noise, noise_prior = torch.chunk(noise, 2, dim=0)
@@ -432,7 +474,7 @@ def train_dreambooth(args: TrainArguments):
                     )
 
                     # Add the prior loss to the instance loss.
-                    loss = loss + args.prior_loss_weight * prior_loss
+                    loss = loss + prior_loss_weight * prior_loss
                 else:
                     loss = F.mse_loss(
                         noise_pred.float(), noise.float(), reduction="mean"
@@ -442,10 +484,10 @@ def train_dreambooth(args: TrainArguments):
                 if accelerator.sync_gradients:
                     params_to_clip = (
                         itertools.chain(unet.parameters(), text_encoder.parameters())
-                        if args.train_text_encoder
+                        if train_text_encoder
                         else unet.parameters()
                     )
-                    accelerator.clip_grad_norm_(params_to_clip, args.max_grad_norm)
+                    accelerator.clip_grad_norm_(params_to_clip, max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -459,7 +501,7 @@ def train_dreambooth(args: TrainArguments):
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
 
-            if global_step >= args.max_train_steps:
+            if global_step >= max_train_steps:
                 break
 
         accelerator.wait_for_everyone()
@@ -467,14 +509,14 @@ def train_dreambooth(args: TrainArguments):
     # Create the pipeline using using the trained modules and save it.
     if accelerator.is_main_process:
         pipeline = StableDiffusionPipeline.from_pretrained(
-            args.pretrained_model_name_or_path,
+            pretrained_model_name_or_path,
             unet=accelerator.unwrap_model(unet),
             text_encoder=accelerator.unwrap_model(text_encoder),
-            revision=args.revision,
+            revision=revision,
         )
-        pipeline.save_pretrained(args.output_dir)
+        pipeline.save_pretrained(output_dir)
 
-        if args.push_to_hub:
+        if push_to_hub:
             repo.push_to_hub(
                 commit_message="End of training", blocking=False, auto_lfs_prune=True
             )
