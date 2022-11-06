@@ -26,7 +26,7 @@ def healthcheck(request):
     return response.json({"state": "healthy", "gpu": gpu})
 
 # Inference POST handler at '/' is called for every http call from Banana
-@server.route('/', methods=["POST"]) 
+@server.route('/', methods=["POST"])
 def inference(request):
     try:
         model_inputs = response.json.loads(request.json)
@@ -39,4 +39,4 @@ def inference(request):
 
 
 if __name__ == '__main__':
-    server.run(host='0.0.0.0', port="8000", workers=1)
+    server.run(host='0.0.0.0', port=8000, workers=1)

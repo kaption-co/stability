@@ -26,7 +26,7 @@ handler = FictionFastDiffusion(
     instance_prompt_subject=instance_prompt_subject,
     instance_prompt_description=instance_prompt_description,
     user_id=user_id,
-    training_id=training_id
+    training_id=training_id,
 )
 
-handler.train(training_image_urls)
+handler.train(training_image_urls=training_image_urls)

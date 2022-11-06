@@ -26,15 +26,16 @@ from PIL import Image
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
-
+from log import get_logger
 from argparse import Namespace
 
 logger = get_logger(__name__)
 
-from typing import TypedDict, Literal
+from typing import TypedDict, Literal, List
 
 
 def train_dreambooth(
+    images: List[Image.Image],
     pretrained_model_name_or_path: str,
     instance_prompt: str,
     hub_token: str,
@@ -76,6 +77,13 @@ def train_dreambooth(
         "constant_with_warmup",
     ] = "constant",
 ):
+
+    # create directories
+    for dir in [class_data_dir, instance_data_dir, output_dir]:
+
+        Path(dir).mkdir(parents=True, exist_ok=True)
+
+    [image.save(f"{instance_data_dir}/photo-{i}.jpg") for i, image in enumerate(images)]
 
     accelerator = Accelerator(
         gradient_accumulation_steps=gradient_accumulation_steps,

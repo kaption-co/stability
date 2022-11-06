@@ -21,6 +21,7 @@ class FictionFastDiffusion(Plugin):
 
         self.user_id = user_id
         self.training_id = training_id
+        self.instance_prompt_subject = instance_prompt_subject
         self.instance_prompt = (
             f"a {instance_prompt_medium} of a sxkx {instance_prompt_subject}"
         )
@@ -36,9 +37,8 @@ class FictionFastDiffusion(Plugin):
         save_path = f"/data/train/{self.training_id}"
         instance_data_dir = f"{save_path}/training_data"
 
-        [image.save(f"{instance_data_dir}/{i}.jpeg") for i, image in enumerate(images)]
-
         train_dreambooth(
+            images=images,
             pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5",
             hub_token=self.hub_token,
             instance_prompt=self.instance_prompt,
