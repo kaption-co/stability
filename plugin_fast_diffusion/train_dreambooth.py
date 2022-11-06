@@ -26,8 +26,10 @@ from PIL import Image
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
-from log import get_logger
+from log import log
 from argparse import Namespace
+
+# import bitsandbytes as bnb
 
 logger = get_logger(__name__)
 
@@ -78,10 +80,16 @@ def train_dreambooth(
     ] = "constant",
 ):
 
+    args = locals()
+    del args["images"]
+
     # create directories
     for dir in [class_data_dir, instance_data_dir, output_dir]:
+        if os.path.exists(dir) == False:
+            log().info(f"Creating directory {dir}")
+            os.makedirs(dir, mode=0o777, exist_ok=True)
 
-        Path(dir).mkdir(parents=True, exist_ok=True)
+    log().info(f"Saving images to {instance_data_dir}")
 
     [image.save(f"{instance_data_dir}/photo-{i}.jpg") for i, image in enumerate(images)]
 
@@ -209,6 +217,8 @@ def train_dreambooth(
         use_auth_token=hub_token,
     )
 
+    unet.set_use_memory_efficient_attention_xformers(True)
+
     vae.requires_grad_(False)
     if not train_text_encoder:
         text_encoder.requires_grad_(False)
@@ -227,17 +237,10 @@ def train_dreambooth(
         )
 
     # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
-    if use_8bit_adam:
-        try:
-            import bitsandbytes as bnb
-        except ImportError:
-            raise ImportError(
-                "To use 8-bit Adam, please install the bitsandbytes library: `pip install bitsandbytes`."
-            )
-
-        optimizer_class = bnb.optim.AdamW8bit
-    else:
-        optimizer_class = torch.optim.AdamW
+    # if use_8bit_adam:
+    #     optimizer_class = bnb.optim.AdamW8bit
+    # else:
+    optimizer_class = torch.optim.AdamW
 
     params_to_optimize = (
         itertools.chain(unet.parameters(), text_encoder.parameters())
@@ -253,7 +256,7 @@ def train_dreambooth(
         # eps=args["adam_epsilon"],
     )
 
-    noise_scheduler = DDPMScheduler.from_config(
+    noise_scheduler = DDPMScheduler(
         beta_start=0.00085,
         beta_end=0.012,
         beta_schedule="scaled_linear",
@@ -363,7 +366,8 @@ def train_dreambooth(
     # We need to initialize the trackers we use, and also store our configuration.
     # The trackers initializes automatically on the main process.
     if accelerator.is_main_process:
-        accelerator.init_trackers("dreambooth", config=vars())
+
+        accelerator.init_trackers("dreambooth", config=args)
 
     # Train!
     total_batch_size = (

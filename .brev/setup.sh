@@ -12,8 +12,14 @@ set -eo pipefail
 # rm get-pip.py
 # source $HOME/.poetry/env
 
+# latest python
+# https://www.itsupportwale.com/blog/how-to-upgrade-to-python-3-10-on-ubuntu-18-04-and-20-04-lts/
+
 ##### Python + Pip + Poetry #####
 (echo ""; echo "##### Python + Pip + Poetry #####"; echo "";)
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt-get update
+sudo apt-get install python3.10
 sudo apt-get install -y python3-distutils
 sudo apt-get install -y python3-apt
 curl -sSL https://install.python-poetry.org | python3 -
@@ -28,6 +34,8 @@ source ~/.zshrc
 source ~/.bashrc
 source $HOME/.poetry/env
 
+pip3 install -r requirements.txt
+conda install xformers -c xformers/label/dev
 ####################################################################################
 ##### Specify software and dependencies that are required for this project     #####
 #####                                                                          #####

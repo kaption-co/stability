@@ -24,3 +24,5 @@ mypy
 markupsafe==2.0.1
 requests
 coloredlogs
+cuda-python
+anaconda

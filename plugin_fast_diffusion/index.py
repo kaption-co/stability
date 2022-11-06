@@ -34,7 +34,7 @@ class FictionFastDiffusion(Plugin):
             filter(None, [download_image(url) for url in training_image_urls])
         )
 
-        save_path = f"/data/train/{self.training_id}"
+        save_path = f"data/train/{self.training_id}"
         instance_data_dir = f"{save_path}/training_data"
 
         train_dreambooth(

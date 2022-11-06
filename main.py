@@ -1,6 +1,6 @@
 from train_utils import download_image
 from typing import List
-
+import os
 from plugin_fast_diffusion.index import FictionFastDiffusion
 
 
