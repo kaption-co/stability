@@ -1,3 +1,4 @@
+setuptools
 sanic
 diffusers
 transformers
@@ -14,10 +15,8 @@ black
 boto3
 poetry
 pytest # unit testing
-wget # curl (already installed?)
 nvsmi # get GPU info
 huggingface_hub
-deepspeed
 torch
 mypy
 # Fix compat problem w AWS
@@ -25,4 +24,3 @@ markupsafe==2.0.1
 requests
 coloredlogs
 cuda-python
-anaconda
