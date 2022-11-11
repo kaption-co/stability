@@ -1,14 +1,10 @@
-setuptools
 sanic
-diffusers
 transformers
 accelerate
 tensorboard
 ftfy
 modelcards
-gradio
 bitsandbytes
-ipywidgets
 GitPython
 torchvision
 black
@@ -24,3 +20,6 @@ markupsafe==2.0.1
 requests
 coloredlogs
 cuda-python
+ninja
+git+https://github.com/ShivamShrirao/diffusers
+psycopg2-binary
